@@ -1,12 +1,12 @@
 #include <Wire.h>
 #include <PWM.h> 
-#include <BluetoothSerial.h>
+//#include <BluetoothSerial.h>
 
-#define bluetoothModuleSerial Serial1
+//#define bluetoothModuleSerial Serial1
 // Create a BluetoothSerial object
 // Serial port that the bluetooth module is connected
 // Verbose mode: true
-BluetoothSerial blueSerial(bluetoothModuleSerial, true);
+//BluetoothSerial blueSerial(bluetoothModuleSerial, true);
 
 // IMU Configs
 #define MPU6050       0x68         // Device address
@@ -89,7 +89,7 @@ void setup() {
   
   Serial.begin(115200);
   // Start communication with bluetooth device
-  bluetoothModuleSerial.begin(115200);
+//  bluetoothModuleSerial.begin(115200);
   
   pinMode(BRAKE, OUTPUT);
   pinMode(DIRECTION_X_1, OUTPUT);
