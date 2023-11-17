@@ -18,11 +18,11 @@ BluetoothSerial blueSerial(bluetoothModuleSerial, true);
 // Motor driver
 #define BRAKE         D2           // Standby pin; must be HIGH for driver to be "ON"
 #define PWM_X         D5
-#define PWM_Y         D8
+#define PWM_Y         D6
 #define DIRECTION_X_1   D3
 #define DIRECTION_X_2   D4
-#define DIRECTION_Y_1   D6
-#define DIRECTION_Y_2   D7
+#define DIRECTION_Y_1   D7
+#define DIRECTION_Y_2   D8
 
 
 float K1 = 70;
