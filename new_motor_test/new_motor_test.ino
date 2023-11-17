@@ -1,12 +1,12 @@
-#define pwmA 23     // PWM capable pin
-#define in1A 21
-#define in2A 22
+#define pwmA D5     // PWM capable pin
+#define in1A D3
+#define in2A D4
 
-#define pwmB 26     // PWM capable pin
-#define in1B 24
-#define in2B 25
+#define pwmB D8     // PWM capable pin
+#define in1B D6
+#define in2B D7
 
-#define stby 20
+#define stby D2
 
 int pwmOutput = 200; // 
 
@@ -37,6 +37,6 @@ void setup() {
 void loop() {
  
   analogWrite(pwmA, pwmOutput); // Send PWM signal to L298N Enable pin
-  analogWrite(pwmA, pwmOutput); // Send PWM signal to L298N Enable pin
+  analogWrite(pwmB, pwmOutput); // Send PWM signal to L298N Enable pin
 
 }

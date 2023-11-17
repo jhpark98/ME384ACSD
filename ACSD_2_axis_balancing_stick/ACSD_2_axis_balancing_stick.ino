@@ -1,6 +1,12 @@
 #include <Wire.h>
-#include <EEPROM.h>
 #include <PWM.h> 
+#include <BluetoothSerial.h>
+
+#define bluetoothModuleSerial Serial1
+// Create a BluetoothSerial object
+// Serial port that the bluetooth module is connected
+// Verbose mode: true
+BluetoothSerial blueSerial(bluetoothModuleSerial, true);
 
 // IMU Configs
 #define MPU6050       0x68         // Device address
@@ -9,16 +15,15 @@
 #define PWR_MGMT_1    0x6B
 #define PWR_MGMT_2    0x6C
 
-// Motor driver EDIT FOR L298N
-#define BRAKE         8   // like the Enable pin (i think)
-#define PWM_X         9
-#define PWM_Y         10
-#define DIRECTION_X   4
-#define DIRECTION_Y   3
+// Motor driver
+#define BRAKE         D2           // Standby pin; must be HIGH for driver to be "ON"
+#define PWM_X         D5
+#define PWM_Y         D8
+#define DIRECTION_X_1   D3
+#define DIRECTION_X_2   D4
+#define DIRECTION_Y_1   D6
+#define DIRECTION_Y_2   D7
 
-
-#define BUZZER        1
-#define VBAT          A7
 
 float K1 = 70;
 float K2 = 5.15;
@@ -42,7 +47,7 @@ int32_t motor_speed_pwmX;
 int32_t motor_speed_pwmY;
 
 uint32_t timer;
-long currentT, previousT_1, previousT_2 = 0;  // laiko periodai
+long currentT, previousT_1, previousT_2 = 0;  
 
 /* IMU Data */
 int16_t  AcX, AcY, AcZ;
@@ -73,12 +78,48 @@ bool calibrated = false;
 
 uint8_t i2cData[14]; // Buffer for I2C data
 
+
+
+void setup() {
+  // UPDATE THESE OFFSETS AFTER THE CALIBRATION
+  // SET ID TO 11 TO INDICATE CALIBRATION HAS BEEN PERFORMED
+  offsets.ID = 10;
+  offsets.X = 0.0;
+  offsets.Y = 0.0; 
+  
+  Serial.begin(115200);
+  // Start communication with bluetooth device
+  bluetoothModuleSerial.begin(115200);
+  
+  pinMode(BRAKE, OUTPUT);
+  pinMode(DIRECTION_X_1, OUTPUT);
+  pinMode(DIRECTION_X_2, OUTPUT);
+  pinMode(DIRECTION_Y_1, OUTPUT);
+  pinMode(DIRECTION_Y_2, OUTPUT);
+  
+//  InitTimersSafe();
+//  SetPinFrequencySafe(PWM_X, 20000);
+//  SetPinFrequencySafe(PWM_Y, 20000);
+
+  analogWrite(PWM_X, 255);
+  analogWrite(PWM_Y, 255);
+  digitalWrite(BRAKE, HIGH);             // turns on the motor driver
+  delay(1000);
+  
+  if (offsets.ID == 11) calibrated = true;
+    else calibrated = false;
+  Serial.println("Calibrating gyroscope...");
+  angle_setup();
+}
+
+
 void writeTo(byte device, byte address, byte value) {
   Wire.beginTransmission(device);
   Wire.write(address);
   Wire.write(value);
   Wire.endTransmission(true);
 }
+
 
 //setup MPU6050
 void angle_setup() {
@@ -98,9 +139,6 @@ void angle_setup() {
   GyZ_offset = GyZ_offset_sum >> 10;
   Serial.print("GyZ offset value = "); Serial.println(GyZ_offset);
 
-  digitalWrite(BUZZER, HIGH);
-  delay(70);
-  digitalWrite(BUZZER, LOW);
   
   for (int i = 0; i < 1024; i++) {
     angle_calc();
@@ -110,13 +148,6 @@ void angle_setup() {
   GyY_offset = GyY_offset_sum >> 10;
   Serial.print("GyY offset value = "); Serial.println(GyY_offset);
   
-  digitalWrite(BUZZER, HIGH);
-  delay(70);
-  digitalWrite(BUZZER, LOW);
-  delay(80);
-  digitalWrite(BUZZER, HIGH);
-  delay(70);
-  digitalWrite(BUZZER, LOW);
 }
 
 void angle_calc() {
@@ -160,27 +191,33 @@ void angle_calc() {
   //Serial.print("AngleX: "); Serial.print(angleX); Serial.print(" AngleY: "); Serial.println(angleY);
 }
 
-// EDIT FOR L298N
+
 void Motor_controlX(int pwm) {
   if (pwm < 0) {
-    digitalWrite(DIRECTION_X, LOW);
+    digitalWrite(DIRECTION_X_1, LOW);
+    digitalWrite(DIRECTION_X_2, HIGH);
     pwm = -pwm;
   } else {
-    digitalWrite(DIRECTION_X, HIGH);
+    digitalWrite(DIRECTION_X_1, HIGH);
+    digitalWrite(DIRECTION_X_2, LOW);
   }
-  pwmWrite(PWM_X, pwm > 255 ? 255 : 255 - pwm);
+  analogWrite(PWM_X, pwm > 255 ? 255 : 255 - pwm);
 }
 
-// EDIT FOR L298N
+
+
 void Motor_controlY(int pwm) {
   if (pwm < 0) {
-    digitalWrite(DIRECTION_Y, LOW);
+    digitalWrite(DIRECTION_Y_1, LOW);
+    digitalWrite(DIRECTION_Y_2, HIGH);
     pwm = -pwm;
   } else {
-    digitalWrite(DIRECTION_Y, HIGH);
+    digitalWrite(DIRECTION_Y_1, HIGH);
+    digitalWrite(DIRECTION_Y_2, LOW);
   }
-  pwmWrite(PWM_Y, pwm > 255 ? 255 : 255 - pwm);
+  analogWrite(PWM_Y, pwm > 255 ? 255 : 255 - pwm);
 }
+
 
 int Tuning() {
   if (!Serial.available())  return 0;
@@ -213,25 +250,21 @@ int Tuning() {
       if (cmd == '-' && calibrating)  {
         calibrated = true;
         calibrating = false;
+        
         Serial.println("calibrating off");
         Serial.print("X: "); Serial.print(robot_angleX); Serial.print(" Y: "); Serial.println(robot_angleY);
+        
         if (abs(robot_angleX) < 15 && abs(robot_angleY) < 15) {
           offsets.ID = 11;
           offsets.X = robot_angleX;
           offsets.Y = robot_angleY;
-          EEPROM.put(0, offsets);
-          digitalWrite(BUZZER, HIGH);
-          delay(70);
-          digitalWrite(BUZZER, LOW);
+          Serial.println("System is now vertical. Please note these offsets:");
+          Serial.print("Angle X Offset:   ");
+          Serial.print(robot_angleX);
+          Serial.print("    Angle Y Offset:   ");
+          Serial.print(robot_angleY);
         } else {
-          Serial.println("The angles are wrong!!!");
-          digitalWrite(BUZZER, HIGH);
-          delay(50);
-          digitalWrite(BUZZER, LOW);
-          delay(70);
-          digitalWrite(BUZZER, HIGH);
-          delay(50);
-          digitalWrite(BUZZER, LOW);
+          Serial.println("The angles are wrong!");
         }
       }
       break;         
@@ -246,44 +279,6 @@ void printValues() {
 }
 
 
-
-
-void battVoltage(double voltage) {
-  //Serial.print("batt: "); Serial.println(voltage); 
-  if (voltage > 8 && voltage <= 9.5) {
-    digitalWrite(BUZZER, LOW);
-  } else {
-    digitalWrite(BUZZER, HIGH);
-  }
-}
-
-
-void setup() {
-  Serial.begin(115200);
-  
-  pinMode(BUZZER, OUTPUT);
-  digitalWrite(BUZZER, LOW);
-  
-  pinMode(BRAKE, OUTPUT);
-  pinMode(DIRECTION_X, OUTPUT);
-  pinMode(DIRECTION_Y, OUTPUT);
-  
-  InitTimersSafe();
-  SetPinFrequencySafe(PWM_X, 20000);
-  SetPinFrequencySafe(PWM_Y, 20000);
-  pwmWrite(PWM_X, 255);
-  pwmWrite(PWM_Y, 255);
-  digitalWrite(BRAKE, HIGH);
-  delay(1000);
-  
-  EEPROM.get(0, offsets);
-  if (offsets.ID == 11) calibrated = true;
-    else calibrated = false;
-  Serial.println("Calibrating gyroscope...");
-  angle_setup();
-}
-
-
 void loop() {
 
   currentT = millis();
@@ -293,7 +288,7 @@ void loop() {
     Tuning(); 
     angle_calc();
 
-    if (vertical && calibrated) {
+    if (vertical && calibrated) {   // vertical and calibrated --> run control
       digitalWrite(BRAKE, HIGH);
       gyroZ = GyZ / 131.0; // Convert to deg/s
       gyroY = GyY / 131.0; // Convert to deg/s
@@ -304,29 +299,29 @@ void loop() {
       pwm_X = constrain(K1 * angleX + K2 * gyroZfilt + K3 * motor_speed_pwmX, -255, 255); 
       pwm_Y = constrain(K1 * angleY + K2 * gyroYfilt + K3 * motor_speed_pwmY, -255, 255); 
       
-      if (!calibrating) {
+      if (!calibrating) {   // not calibrating
         Motor_controlX(pwm_X);
         motor_speed_pwmX += pwm_X;
         Motor_controlY(pwm_Y);
         motor_speed_pwmY += pwm_Y;
-      } else {
+      } else {  // calibrating
           Motor_controlX(0);
           Motor_controlY(0);
       }
       previousT_1 = currentT;
-    } else {
+    } else {    // not vertical OR not calibrated
       Motor_controlX(0);
       Motor_controlY(0);
-      digitalWrite(BRAKE, LOW);
+      digitalWrite(BRAKE, LOW);      // turns off driver
       motor_speed_pwmX = 0;
       motor_speed_pwmY = 0;
     }
   }
+  
   if (currentT - previousT_2 >= 2000) {
-    battVoltage((double)analogRead(VBAT) / 38.4); // This is then connected to a 47k-12k voltage divider
-  if (!calibrated && !calibrating) {
-      Serial.println("first you need to calibrate the balancing point...");
-    }
-    previousT_2 = currentT;
+    if (!calibrated && !calibrating) {
+        Serial.println("You need to calibrate the balancing point. Send c+ to begin.");
+      }
+      previousT_2 = currentT;
   }
 }
