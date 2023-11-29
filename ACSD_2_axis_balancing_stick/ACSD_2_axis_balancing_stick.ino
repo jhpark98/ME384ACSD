@@ -150,45 +150,59 @@ void angle_setup() {
 }
 
 void angle_calc() {
-  
+
+  // Read gyroscope data
   Wire.beginTransmission(MPU6050);
   Wire.write(0x43);
   Wire.endTransmission(false);
-  Wire.requestFrom(MPU6050, 6, true);  
-  GyX = Wire.read() << 8 | Wire.read(); // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-  GyY = Wire.read() << 8 | Wire.read(); // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-  GyZ = Wire.read() << 8 | Wire.read(); // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+  Wire.requestFrom(MPU6050, 6, true);
+  GyX = Wire.read() << 8 | Wire.read(); // Read gyroscope X-axis data
+  GyY = Wire.read() << 8 | Wire.read(); // Read gyroscope Y-axis data
+  GyZ = Wire.read() << 8 | Wire.read(); // Read gyroscope Z-axis data
 
+  // Read accelerometer data
   Wire.beginTransmission(MPU6050);
-  Wire.write(0x3B);                  
+  Wire.write(0x3B);
   Wire.endTransmission(false);
-  Wire.requestFrom(MPU6050, 6, true);  
-  AcX = Wire.read() << 8 | Wire.read(); // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-  AcY = Wire.read() << 8 | Wire.read(); // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-  AcZ = Wire.read() << 8 | Wire.read(); // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  Wire.requestFrom(MPU6050, 6, true);
+  AcX = Wire.read() << 8 | Wire.read(); // Read accelerometer X-axis data
+  AcY = Wire.read() << 8 | Wire.read(); // Read accelerometer Y-axis data
+  AcZ = Wire.read() << 8 | Wire.read(); // Read accelerometer Z-axis data
 
+  // Apply offsets to accelerometer and gyroscope data
   AcX += AcX_offset;
-  AcY += AcY_offset;  
+  AcY += AcY_offset;
   AcZ += AcZ_offset;
   GyZ -= GyZ_offset;
   GyY -= GyY_offset;
 
-  robot_angleX += GyZ * loop_time / 1000 / 65.536; 
-  Acc_angleX = atan2(AcY, -AcX) * 57.2958;               // angle from acc. values  * 57.2958 (deg/rad)
+  // Calculate X-axis angle
+  robot_angleX += GyZ * loop_time / 1000 / 65.536;
+  Acc_angleX = atan2(AcY, -AcX) * 57.2958; // Calculate angle from accelerometer data
   robot_angleX = robot_angleX * Gyro_amount + Acc_angleX * (1.0 - Gyro_amount);
 
-  robot_angleY += GyY * loop_time / 1000 / 65.536;   
-  Acc_angleY = -atan2(AcZ, -AcX) * 57.2958;              //angle from acc. values  * 57.2958 (deg/rad)
+  // Calculate Y-axis angle
+  robot_angleY += GyY * loop_time / 1000 / 65.536;
+  Acc_angleY = -atan2(AcZ, -AcX) * 57.2958; // Calculate angle from accelerometer data
   robot_angleY = robot_angleY * Gyro_amount + Acc_angleY * (1.0 - Gyro_amount);
-  
+
+  // Apply offsets and set final angles
   angleX = robot_angleX - offsets.X;
   angleY = robot_angleY - offsets.Y;
-  
-  if (abs(angleX) > 6 || abs(angleY) > 6) vertical = false;
-  if (abs(angleX) < 0.3 && abs(angleY) < 0.3) vertical = true;
 
-  // Serial.print("AngleX: "); Serial.print(angleX); Serial.print(" AngleY: "); Serial.println(angleY);
+  // Print acceleration and gyroscope values with labels
+  // Serial.print("AccX: "); Serial.print(AcX); Serial.print("\tAccY: "); Serial.print(AcY); Serial.print("\tAccZ: "); Serial.print(AcZ);
+  // Serial.print("\tGyroX: "); Serial.print(GyX); Serial.print("\tGyroY: "); Serial.print(GyY); Serial.print("\tGyroZ: "); Serial.print(GyZ);
+  // Serial.print("\tAngleX: "); Serial.print(angleX); Serial.print("\tAngleY: "); Serial.println(angleY);
+
+  // Check if the device is in a vertical position
+  if (abs(angleX) > 45 || abs(angleY) > 45)
+    vertical = false;
+  if (abs(angleX) < 30 && abs(angleY) < 30)
+    vertical = true;
 }
+
+
 
 
 void Motor_controlX(int pwm) {
@@ -287,7 +301,14 @@ void loop() {
     Tuning(); 
     angle_calc();
 
+    // Serial.print("isvert:   ");
+    // Serial.print(vertical); 
+
+    // Serial.print("iscalibrated:   ");
+    // Serial.println(calibrated);
     if (vertical && calibrated) {   // vertical and calibrated --> run control
+      // Serial.println("vertical and calibrated");
+
       digitalWrite(BRAKE, HIGH);
       gyroZ = GyZ / 131.0; // Convert to deg/s
       gyroY = GyY / 131.0; // Convert to deg/s
@@ -299,16 +320,24 @@ void loop() {
       pwm_Y = constrain(K1 * angleY + K2 * gyroYfilt + K3 * motor_speed_pwmY, -255, 255); 
       
       if (!calibrating) {   // not calibrating
+        // Serial.println("not calibrating");
+
         Motor_controlX(pwm_X);
         motor_speed_pwmX += pwm_X;
         Motor_controlY(pwm_Y);
         motor_speed_pwmY += pwm_Y;
-      } else {  // calibrating
+      } 
+      
+      else {  // calibrating
+          // Serial.print("calibrating");
           Motor_controlX(0);
           Motor_controlY(0);
       }
       previousT_1 = currentT;
-    } else {    // not vertical OR not calibrated
+    } 
+    
+    else {    // not vertical OR not calibrated
+    // Serial.println("not vertical OR calibrated");
       Motor_controlX(0);
       Motor_controlY(0);
       digitalWrite(BRAKE, LOW);      // turns off driver
