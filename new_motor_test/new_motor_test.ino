@@ -2,9 +2,9 @@
 #define in1A D3
 #define in2A D4
 
-#define pwmB D8     // PWM capable pin
-#define in1B D6
-#define in2B D7
+#define pwmB D6     // PWM capable pin
+#define in1B D7
+#define in2B D8
 
 #define stby D2
 

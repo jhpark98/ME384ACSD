@@ -1,5 +1,4 @@
 #include <Wire.h>
-#include <PWM.h> 
 //#include <BluetoothSerial.h>
 
 //#define bluetoothModuleSerial Serial1
@@ -56,12 +55,12 @@ int32_t GyZ, GyX, GyY, gyroZ, gyroY;
 //Sensor output scaling
 #define accSens 0             // 0 = 2g, 1 = 4g, 2 = 8g, 3 = 16g
 #define gyroSens 1            // 0 = 250rad/s, 1 = 500rad/s, 2 1000rad/s, 3 = 2000rad/s
-#define Gyro_amount 0.996     //percent of gyro in complementary filter
+#define Gyro_amount 0.0     //percent of gyro in complementary filter
 
 //IMU offset values
-int16_t  AcX_offset = -750;
-int16_t  AcY_offset = 280;
-int16_t  AcZ_offset = 100;
+int16_t  AcX_offset = 0;
+int16_t  AcY_offset = 0;
+int16_t  AcZ_offset = 0;
 int16_t  GyZ_offset = 0;
 int16_t  GyY_offset = 0;
 int32_t  GyZ_offset_sum = 0;
@@ -188,7 +187,7 @@ void angle_calc() {
   if (abs(angleX) > 6 || abs(angleY) > 6) vertical = false;
   if (abs(angleX) < 0.3 && abs(angleY) < 0.3) vertical = true;
 
-  //Serial.print("AngleX: "); Serial.print(angleX); Serial.print(" AngleY: "); Serial.println(angleY);
+  // Serial.print("AngleX: "); Serial.print(angleX); Serial.print(" AngleY: "); Serial.println(angleY);
 }
 
 
